@@ -1,5 +1,6 @@
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 
 import javax.sound.sampled.AudioFileFormat;
 import javax.sound.sampled.AudioFormat;
@@ -12,217 +13,297 @@ import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.UnsupportedAudioFileException;
 
 /**
- * One loaded audio file: decoded into memory, playable through a
- * {@link Clip}, with a precomputed waveform for drawing.
+ * Class to represent one song that is loaded and ready to play. The whole
+ * song is decoded into memory so it can be played through a Clip, and a
+ * waveform is calculated so the UI can draw it.
  *
  * <p>
- * Uses the JDK's {@code javax.sound} for WAV, AIFF and AU. MP3 works when
- * the mp3spi jars are on the classpath (see run.bat); they plug into
- * {@code AudioSystem} automatically.
- *
- * <p>
- * ponytail: whole track is decoded into memory (~10 MB per stereo minute);
- * stream from disk if hour-long files matter.
+ * Java can play WAV, AIFF, and AU files by itself. MP3 files work when the
+ * mp3spi library is in the lib folder (run.bat downloads it).
  */
 public final class AudioTrack {
 
-    /** Number of waveform bars. */
-    public static final int PEAKS = 180;
+    /**
+     * Number of bars in the waveform.
+     */
+    public static final int WAVEFORM_BARS = 180;
 
-    /** File extensions the JDK can decode. */
+    /**
+     * File extensions this player can open.
+     */
     public static final String[] EXTENSIONS = { "mp3", "wav", "aif", "aiff",
         "au" };
 
-    /** Bytes per 16-bit sample. */
-    private static final int BYTES = 2;
-
-    /** Largest 16-bit sample value. */
-    private static final float MAX = 32768f;
-
-    /** Decibels per factor of ten in amplitude. */
-    private static final float DB = 20f;
-
-    /** The playing clip. */
-    private final Clip clip;
-
-    /** Normalized peak per waveform bar, 0..1. */
-    private final float[] peaks = new float[PEAKS];
-
-    /** Called on the audio thread when playback reaches the end. */
-    private Runnable onEnd = () -> { };
+    /**
+     * Bits in one decoded sample.
+     */
+    private static final int BITS_PER_SAMPLE = 16;
+    /**
+     * Bytes in one decoded sample.
+     */
+    private static final int BYTES_PER_SAMPLE = 2;
+    /**
+     * Largest possible value of a 16 bit sample.
+     */
+    private static final float MAX_SAMPLE = 32768f;
+    /**
+     * Number of bits to shift the high byte of a sample.
+     */
+    private static final int BYTE_SHIFT = 8;
+    /**
+     * Mask that turns a signed byte into an unsigned value.
+     */
+    private static final int BYTE_MASK = 0xFF;
+    /**
+     * Used to turn a volume into decibels.
+     */
+    private static final double DECIBELS_PER_DECADE = 20;
+    /**
+     * Microseconds in a second.
+     */
+    private static final double MICROSECONDS = 1_000_000;
 
     /**
-     * Decodes a file and opens a clip for it.
+     * The clip that plays the song.
+     */
+    private final Clip clip;
+    /**
+     * Height of each waveform bar, from 0 to 1.
+     */
+    private final float[] waveform = new float[WAVEFORM_BARS];
+    /**
+     * Code to run when the song finishes.
+     */
+    private Runnable onFinished;
+
+    /**
+     * Loads a song from a file.
      *
      * @param file
-     *            the audio file
+     *            The song file.
      * @throws IOException
-     *             if the file cannot be read or decoded
+     *             if the file can't be read, isn't a supported format, or
+     *             there is no speaker to play it on.
      */
     public AudioTrack(File file) throws IOException {
-        AudioFormat pcm;
-        byte[] data;
-        try (AudioInputStream raw = AudioSystem.getAudioInputStream(file)) {
-            AudioFormat src = raw.getFormat();
-            pcm = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED,
-                    src.getSampleRate(), 16, src.getChannels(),
-                    src.getChannels() * BYTES, src.getSampleRate(), false);
-            try (AudioInputStream in = AudioSystem.getAudioInputStream(pcm,
-                    raw)) {
-                data = in.readAllBytes();
+        AudioFormat format;
+        byte[] samples;
+
+        try (AudioInputStream original = AudioSystem.getAudioInputStream(file)) {
+            AudioFormat source = original.getFormat();
+            int frameSize = source.getChannels() * BYTES_PER_SAMPLE;
+            format = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED,
+                    source.getSampleRate(), BITS_PER_SAMPLE,
+                    source.getChannels(), frameSize, source.getSampleRate(),
+                    false);
+
+            try (AudioInputStream decoded = AudioSystem
+                    .getAudioInputStream(format, original)) {
+                samples = decoded.readAllBytes();
             }
         } catch (UnsupportedAudioFileException | IllegalArgumentException e) {
-            throw new IOException(file.getName().toLowerCase().endsWith(".mp3")
-                    ? "MP3 support missing - start the player with run.bat"
-                    : "unsupported format (use MP3, WAV, AIFF or AU)",
-                    e);
+            String message = "unsupported format (use MP3, WAV, AIFF or AU)";
+            if (file.getName().toLowerCase().endsWith(".mp3")) {
+                message = "MP3 support missing - start the player with run.bat";
+            }
+            throw new IOException(message, e);
         }
-        this.computePeaks(data, pcm.getChannels());
+
+        this.buildWaveform(samples, format.getChannels());
+
         try {
             this.clip = AudioSystem.getClip();
-            this.clip.open(pcm, data, 0, data.length);
+            this.clip.open(format, samples, 0, samples.length);
         } catch (LineUnavailableException | IllegalArgumentException e) {
             throw new IOException("no audio output device available", e);
         }
-        this.clip.addLineListener(e -> {
-            if (e.getType() == LineEvent.Type.STOP && this.clip
-                    .getFramePosition() >= this.clip.getFrameLength() - 1) {
-                this.onEnd.run();
+
+        this.clip.addLineListener(event -> {
+            if (event.getType() == LineEvent.Type.STOP && this.isAtEnd()
+                    && this.onFinished != null) {
+                this.onFinished.run();
             }
         });
     }
 
     /**
-     * Fills {@link #peaks} with the loudest sample of each slice.
+     * Fills the waveform with the loudest sample in each slice of the song.
      *
-     * @param data
-     *            16-bit little-endian PCM
+     * @param samples
+     *            The decoded song, as 16 bit little endian samples.
      * @param channels
-     *            channel count
+     *            The number of channels (1 for mono, 2 for stereo).
      */
-    private void computePeaks(byte[] data, int channels) {
-        int frames = data.length / (BYTES * channels);
-        float loudest = 1e-6f;
-        for (int b = 0; b < PEAKS; b++) {
-            int from = (int) ((long) frames * b / PEAKS);
-            int to = (int) ((long) frames * (b + 1) / PEAKS);
-            int max = 0;
-            for (int f = from; f < to; f++) {
-                int i = f * BYTES * channels; // first channel is enough
-                int s = Math.abs((short) ((data[i + 1] << 8)
-                        | (data[i] & 0xFF)));
-                max = Math.max(max, s);
+    private void buildWaveform(byte[] samples, int channels) {
+        int frameSize = BYTES_PER_SAMPLE * channels;
+        int frames = samples.length / frameSize;
+        float loudest = 0;
+
+        for (int bar = 0; bar < WAVEFORM_BARS; bar++) {
+            int start = (int) ((long) frames * bar / WAVEFORM_BARS);
+            int end = (int) ((long) frames * (bar + 1) / WAVEFORM_BARS);
+            int peak = 0;
+
+            for (int frame = start; frame < end; frame++) {
+                // Only the first channel is checked, which is close enough.
+                int i = frame * frameSize;
+                int high = samples[i + 1] << BYTE_SHIFT;
+                int low = samples[i] & BYTE_MASK;
+                int sample = Math.abs((short) (high | low));
+                peak = Math.max(peak, sample);
             }
-            this.peaks[b] = max / MAX;
-            loudest = Math.max(loudest, this.peaks[b]);
+
+            this.waveform[bar] = peak / MAX_SAMPLE;
+            loudest = Math.max(loudest, this.waveform[bar]);
         }
-        for (int b = 0; b < PEAKS; b++) {
-            this.peaks[b] /= loudest;
+
+        if (loudest > 0) {
+            for (int bar = 0; bar < WAVEFORM_BARS; bar++) {
+                this.waveform[bar] = this.waveform[bar] / loudest;
+            }
         }
     }
 
     /**
-     * Reads a file's length without decoding it.
+     * Reads how long a song is without loading the whole file.
      *
      * @param file
-     *            the audio file
-     * @return length in seconds, or -1 if unknown / unsupported
+     *            The song file.
+     * @return the length in seconds, or -1 if it can't be read.
      */
-    public static double durationOf(File file) {
+    public static double lengthOf(File file) {
+        double seconds = -1;
         try {
-            AudioFileFormat f = AudioSystem.getAudioFileFormat(file);
-            if (f.getFrameLength() > 0) {
-                return f.getFrameLength() / f.getFormat().getFrameRate();
-            }
-            // mp3spi reports length as a "duration" property (microseconds)
-            if (f.properties().get("duration") instanceof Long us) {
-                return us / 1e6;
+            AudioFileFormat format = AudioSystem.getAudioFileFormat(file);
+            Map<String, Object> properties = format.properties();
+
+            if (format.getFrameLength() > 0) {
+                seconds = format.getFrameLength()
+                        / format.getFormat().getFrameRate();
+            } else if (properties.get("duration") instanceof Long) {
+                // MP3 files store their length as a "duration" property.
+                long microseconds = (Long) properties.get("duration");
+                seconds = microseconds / MICROSECONDS;
             }
         } catch (UnsupportedAudioFileException | IOException e) {
-            return -1;
+            seconds = -1;
         }
-        return -1;
+        return seconds;
     }
 
     /**
-     * @param r
-     *            called (on the audio thread) when the track ends
+     * Sets the code to run when the song finishes playing.
+     *
+     * @param onFinished
+     *            The code to run. It runs on the audio thread.
      */
-    public void setOnEnd(Runnable r) {
-        this.onEnd = r;
+    public void setOnFinished(Runnable onFinished) {
+        this.onFinished = onFinished;
     }
 
-    /** Starts or resumes playback. */
+    /**
+     * Checks if the song has played all the way through.
+     *
+     * @return true if the song is at its end.
+     */
+    private boolean isAtEnd() {
+        return this.clip.getFramePosition() >= this.clip.getFrameLength() - 1;
+    }
+
+    /**
+     * Plays the song from where it was paused, or from the start if it had
+     * finished.
+     */
     public void play() {
-        if (this.clip.getFramePosition() >= this.clip.getFrameLength() - 1) {
+        if (this.isAtEnd()) {
             this.clip.setFramePosition(0);
         }
         this.clip.start();
     }
 
-    /** Pauses playback. */
+    /**
+     * Pauses the song.
+     */
     public void pause() {
         this.clip.stop();
     }
 
     /**
-     * @return whether audio is playing
+     * Checks if the song is playing.
+     *
+     * @return true if the song is playing.
      */
     public boolean isPlaying() {
         return this.clip.isRunning();
     }
 
     /**
-     * @return playback position, 0..1
+     * Returns how far into the song playback is.
+     *
+     * @return the progress from 0 (start) to 1 (end).
      */
     public double progress() {
-        return (double) this.clip.getFramePosition()
-                / Math.max(1, this.clip.getFrameLength());
+        int length = Math.max(1, this.clip.getFrameLength());
+        return (double) this.clip.getFramePosition() / length;
     }
 
     /**
-     * @param fraction
-     *            position to jump to, 0..1
+     * Jumps to a point in the song.
+     *
+     * @param progress
+     *            Where to jump to, from 0 (start) to 1 (end).
      */
-    public void seek(double fraction) {
-        double f = Math.max(0, Math.min(1, fraction));
-        this.clip.setFramePosition((int) (f * (this.clip.getFrameLength()
-                - 1)));
+    public void seek(double progress) {
+        double clamped = Math.max(0, Math.min(1, progress));
+        int frame = (int) (clamped * (this.clip.getFrameLength() - 1));
+        this.clip.setFramePosition(frame);
     }
 
     /**
-     * @return length in seconds
+     * Returns the length of the song.
+     *
+     * @return the length in seconds.
      */
     public double seconds() {
-        return this.clip.getMicrosecondLength() / 1e6;
+        return this.clip.getMicrosecondLength() / MICROSECONDS;
     }
 
     /**
-     * @return normalized waveform peaks (do not modify)
+     * Returns the waveform of the song. Each value is the height of one bar,
+     * from 0 to 1.
+     *
+     * @return the waveform.
      */
-    public float[] peaks() {
-        return this.peaks;
+    public float[] waveform() {
+        return this.waveform;
     }
 
     /**
+     * Sets the volume.
+     *
      * @param volume
-     *            0..1
+     *            The volume from 0 (silent) to 1 (full).
      */
     public void setVolume(double volume) {
-        if (!this.clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
-            return;
+        if (this.clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
+            FloatControl gain = (FloatControl) this.clip
+                    .getControl(FloatControl.Type.MASTER_GAIN);
+
+            float decibels = gain.getMinimum();
+            if (volume > 0) {
+                decibels = (float) (DECIBELS_PER_DECADE * Math.log10(volume));
+            }
+            decibels = Math.max(gain.getMinimum(),
+                    Math.min(gain.getMaximum(), decibels));
+            gain.setValue(decibels);
         }
-        FloatControl gain = (FloatControl) this.clip
-                .getControl(FloatControl.Type.MASTER_GAIN);
-        float db = volume <= 0 ? gain.getMinimum()
-                : (float) (DB * Math.log10(volume));
-        gain.setValue(Math.max(gain.getMinimum(),
-                Math.min(gain.getMaximum(), db)));
     }
 
-    /** Stops playback and frees the audio line. */
+    /**
+     * Stops the song and frees the speaker for the next one.
+     */
     public void close() {
-        this.onEnd = () -> { };
+        this.onFinished = null;
         this.clip.close();
     }
 }

@@ -1,30 +1,29 @@
 package components.musicplayer;
 
 /**
- * Kernel interface for a music player. The playlist is a queue: its front is
- * the current track.
+ * Kernel interface for a music player.
  */
 public interface MusicPlayerKernel {
 
     /**
-     * Resets this to an empty, paused playlist.
+     * Clears the playlist.
      *
      * @clears this
      */
     void clear();
 
     /**
-     * Returns a new, empty object of the same type.
+     * Creates a new, empty music player.
      *
-     * @return the new object
+     * @return the new music player
      */
     MusicPlayer newInstance();
 
     /**
-     * Moves the contents of source into this and clears source.
+     * Moves the playlist from source into this and clears source.
      *
      * @param source
-     *            the object to take the contents of
+     *            The music player being transferred from.
      * @replaces this
      * @clears source
      */

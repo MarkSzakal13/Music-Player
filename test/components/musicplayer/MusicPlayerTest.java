@@ -2,6 +2,10 @@ package components.musicplayer;
 
 import static org.junit.Assert.assertEquals;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 import org.junit.Test;
 
 /**
@@ -54,70 +58,133 @@ public class MusicPlayerTest {
     }
 
     /**
-     * Builds a player with the given songs.
-     *
-     * @param songs
-     *            the songs
-     * @return the player
+     * Tests adjustOrder moving a song to the end.
      */
-    private static MusicPlayer of(String... songs) {
-        MusicPlayer p = new MusicPlayerOnQueue();
-        for (String s : songs) {
-            p.addSong(s);
-        }
-        return p;
+    @Test
+    public void testAdjustOrderToEnd() {
+        MusicPlayerOnQueue player = new MusicPlayerOnQueue();
+        player.addSong("Heartless");
+        player.addSong("Flashing Lights");
+        player.addSong("Good Morning");
+
+        player.adjustOrder("Heartless", 2);
+
+        assertEquals(Arrays.asList("Flashing Lights", "Good Morning",
+                "Heartless"), player.songs());
     }
 
     /**
-     * Tests adjustOrder to the end and with an unknown song.
+     * Tests adjustOrder with a song that is not in the playlist.
      */
     @Test
-    public void testAdjustOrderEdges() {
-        MusicPlayer p = of("A", "B", "C");
-        p.adjustOrder("A", 2);
-        assertEquals(java.util.List.of("B", "C", "A"), p.songs());
-        p.adjustOrder("Z", 0);
-        assertEquals(java.util.List.of("B", "C", "A"), p.songs());
+    public void testAdjustOrderMissingSong() {
+        MusicPlayerOnQueue player = new MusicPlayerOnQueue();
+        player.addSong("Heartless");
+        player.addSong("Flashing Lights");
+
+        player.adjustOrder("Stronger", 0);
+
+        assertEquals(Arrays.asList("Heartless", "Flashing Lights"),
+                player.songs());
     }
 
     /**
-     * Tests next and previous rotate the playlist.
+     * Tests next method.
      */
     @Test
-    public void testNextPrevious() {
-        MusicPlayer p = of("A", "B", "C");
-        p.next();
-        assertEquals(java.util.List.of("B", "C", "A"), p.songs());
-        p.previous();
-        assertEquals(java.util.List.of("A", "B", "C"), p.songs());
-        p.previous();
-        assertEquals("C", p.getTrack());
+    public void testNext() {
+        MusicPlayerOnQueue player = new MusicPlayerOnQueue();
+        player.addSong("Heartless");
+        player.addSong("Flashing Lights");
+        player.addSong("Good Morning");
+
+        player.next();
+
+        assertEquals("Flashing Lights", player.getTrack());
+        assertEquals(Arrays.asList("Flashing Lights", "Good Morning",
+                "Heartless"), player.songs());
     }
 
     /**
-     * Tests songs() leaves the player unchanged, and shuffle keeps songs.
+     * Tests previous method.
      */
     @Test
-    public void testSongsAndShuffle() {
-        MusicPlayer p = of("A", "B", "C");
-        p.play();
-        p.songs();
-        assertEquals(3, p.getPlaylistLength());
-        assertEquals(true, p.play());
-        p.shuffle();
-        java.util.List<String> s = new java.util.ArrayList<>(p.songs());
-        java.util.Collections.sort(s);
-        assertEquals(java.util.List.of("A", "B", "C"), s);
+    public void testPrevious() {
+        MusicPlayerOnQueue player = new MusicPlayerOnQueue();
+        player.addSong("Heartless");
+        player.addSong("Flashing Lights");
+        player.addSong("Good Morning");
+
+        player.previous();
+
+        assertEquals("Good Morning", player.getTrack());
+        player.next();
+        assertEquals("Heartless", player.getTrack());
     }
 
     /**
-     * Tests equals, hashCode and toString.
+     * Tests songs method does not change the playlist.
      */
     @Test
-    public void testEqualsToString() {
-        assertEquals(of("A", "B"), of("A", "B"));
-        assertEquals(of("A", "B").hashCode(), of("A", "B").hashCode());
-        assertEquals(false, of("A", "B").equals(of("B", "A")));
-        assertEquals("{A, B}", of("A", "B").toString());
+    public void testSongs() {
+        MusicPlayerOnQueue player = new MusicPlayerOnQueue();
+        player.addSong("Heartless");
+        player.addSong("Flashing Lights");
+
+        List<String> songs = player.songs();
+
+        assertEquals(Arrays.asList("Heartless", "Flashing Lights"), songs);
+        assertEquals(2, player.getPlaylistLength());
+        assertEquals("Heartless", player.getTrack());
+    }
+
+    /**
+     * Tests shuffle keeps the same songs.
+     */
+    @Test
+    public void testShuffleKeepsSongs() {
+        MusicPlayerOnQueue player = new MusicPlayerOnQueue();
+        player.addSong("Heartless");
+        player.addSong("Flashing Lights");
+        player.addSong("Good Morning");
+
+        player.shuffle();
+
+        List<String> songs = player.songs();
+        Collections.sort(songs);
+        assertEquals(Arrays.asList("Flashing Lights", "Good Morning",
+                "Heartless"), songs);
+    }
+
+    /**
+     * Tests equals and hashCode.
+     */
+    @Test
+    public void testEquals() {
+        MusicPlayerOnQueue player1 = new MusicPlayerOnQueue();
+        player1.addSong("Heartless");
+        player1.addSong("Flashing Lights");
+        MusicPlayerOnQueue player2 = new MusicPlayerOnQueue();
+        player2.addSong("Heartless");
+        player2.addSong("Flashing Lights");
+        MusicPlayerOnQueue player3 = new MusicPlayerOnQueue();
+        player3.addSong("Flashing Lights");
+        player3.addSong("Heartless");
+
+        assertEquals(true, player1.equals(player2));
+        assertEquals(player1.hashCode(), player2.hashCode());
+        assertEquals(false, player1.equals(player3));
+    }
+
+    /**
+     * Tests toString method.
+     */
+    @Test
+    public void testToString() {
+        MusicPlayerOnQueue player = new MusicPlayerOnQueue();
+        player.addSong("Heartless");
+        player.addSong("Flashing Lights");
+
+        assertEquals("{Heartless, Flashing Lights}", player.toString());
     }
 }

@@ -39,25 +39,27 @@ public interface MusicPlayer extends MusicPlayerKernel {
     void adjustOrder(String song, int index);
 
     /**
-     * Advances to the next track, moving the current one to the end.
+     * Moves to the next song and puts the current song at the end.
      *
      * @updates this
-     * @ensures playlist = #playlist[1, |#playlist|) * <#playlist[0]>
+     * @requires playlist.length() > 0
+     * @ensures getTrack() = the song after #getTrack()
      */
     void next();
 
     /**
-     * Goes back to the previous track, moving the last one to the front.
+     * Moves back to the previous song and puts the last song at the front.
      *
      * @updates this
-     * @ensures #playlist = playlist[1, |playlist|) * <playlist[0]>
+     * @requires playlist.length() > 0
+     * @ensures getTrack() = the last song of #playlist
      */
     void previous();
 
     /**
-     * Returns the playlist in order, current track first.
+     * Returns the songs in the playlist, starting with the current song.
      *
-     * @return a copy of the playlist
+     * @return a list of the songs in order
      * @ensures songs = playlist
      */
     List<String> songs();

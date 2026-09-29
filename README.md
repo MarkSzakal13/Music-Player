@@ -44,4 +44,13 @@ java -cp "bin:lib/*" MusicPlayerUI        # use ; instead of : on Windows
 | `MusicPlayerSecondary` | Secondary methods written using only kernel methods |
 | `MusicPlayerOnQueue` | Kernel implementation on a queue (front = current track) |
 
-The UI (`MusicPlayerUI`) and audio playback (`AudioTrack`) sit on top of it.
+The desktop app is built on top of the component:
+
+| File | Role |
+| --- | --- |
+| `MusicPlayerUI` | The window: layout, playback, queue, playlists |
+| `AudioTrack` | Loads and plays one song, and builds its waveform |
+| `Turntable` | The spinning record and tonearm |
+| `WaveformBar` | Waveform that works as the seek bar |
+| `IconButton`, `VolumeSlider`, `QueueCellRenderer`, `ThinScrollBarUI` | Custom controls |
+| `Theme`, `TrackInfo` | Shared colors and fonts, and title / artist / time helpers |
