@@ -6,7 +6,7 @@ queue that takes its color from whatever is playing.
 
 ## Features
 
-- Play WAV, AIFF and AU files (Java's built-in audio; no extra libraries)
+- Play MP3, WAV, AIFF and AU files
 - Play / pause, next, previous, seek (click or drag the waveform), volume
 - Shuffle (keeps the current song playing) and repeat off / all / one
 - Queue: add files or whole folders (button or drag-and-drop), reorder and
@@ -17,20 +17,23 @@ queue that takes its color from whatever is playing.
   `Shift+←/→` seek 5s · `↑/↓` volume · `Delete` remove selected
 - Console versions: `BasicMusicPlayer` and `AdvancedMusicPlayer`
 
-> MP3 isn't supported by Java's built-in audio. Convert MP3s to WAV (e.g.
-> with Audacity or VLC) to play them.
-
 ## Running
 
-Requires Java 17+. From the repository root:
+Requires Java 17+. On Windows, double-click **`run.bat`** (or run it from
+PowerShell). The first time, it downloads two optional libraries into `lib/`:
+
+- [FlatLaf](https://www.formdev.com/flatlaf/): modern, crisp dark look
+- [mp3spi / JLayer](https://github.com/umjammer/mp3spi): MP3 playback
+
+then builds and opens the player. Without them it still runs, with the
+standard look and no MP3.
+
+Manual build (any OS):
 
 ```bash
-javac -d bin -sourcepath src src/MusicPlayerUI.java
-java -cp bin MusicPlayerUI
+javac -d bin -cp "lib/*" -sourcepath src src/MusicPlayerUI.java
+java -cp "bin:lib/*" MusicPlayerUI        # use ; instead of : on Windows
 ```
-
-You can also pass files or folders to queue on startup:
-`java -cp bin MusicPlayerUI "C:\Users\me\Music"`.
 
 ## Component
 

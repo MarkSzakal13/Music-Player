@@ -16,7 +16,13 @@ import javax.sound.sampled.UnsupportedAudioFileException;
  * {@link Clip}, with a precomputed waveform for drawing.
  *
  * <p>
- * Uses only the JDK's {@code javax.sound}, so it plays WAV, AIFF and AU.
+ * Uses the JDK's {@code javax.sound} for WAV, AIFF and AU. MP3 works when
+ * the mp3spi jars are on the classpath (see run.bat); they plug into
+ * {@code AudioSystem} automatically.
+ *
+ * <p>
+ * ponytail: whole track is decoded into memory (~10 MB per stereo minute);
+ * stream from disk if hour-long files matter.
  */
 public final class AudioTrack {
 
@@ -24,7 +30,8 @@ public final class AudioTrack {
     public static final int PEAKS = 180;
 
     /** File extensions the JDK can decode. */
-    public static final String[] EXTENSIONS = { "wav", "aif", "aiff", "au" };
+    public static final String[] EXTENSIONS = { "mp3", "wav", "aif", "aiff",
+        "au" };
 
     /** Bytes per 16-bit sample. */
     private static final int BYTES = 2;
@@ -65,7 +72,9 @@ public final class AudioTrack {
                 data = in.readAllBytes();
             }
         } catch (UnsupportedAudioFileException | IllegalArgumentException e) {
-            throw new IOException("unsupported format (use WAV, AIFF or AU)",
+            throw new IOException(file.getName().toLowerCase().endsWith(".mp3")
+                    ? "MP3 support missing - start the player with run.bat"
+                    : "unsupported format (use MP3, WAV, AIFF or AU)",
                     e);
         }
         this.computePeaks(data, pcm.getChannels());
@@ -124,6 +133,10 @@ public final class AudioTrack {
             AudioFileFormat f = AudioSystem.getAudioFileFormat(file);
             if (f.getFrameLength() > 0) {
                 return f.getFrameLength() / f.getFormat().getFrameRate();
+            }
+            // mp3spi reports length as a "duration" property (microseconds)
+            if (f.properties().get("duration") instanceof Long us) {
+                return us / 1e6;
             }
         } catch (UnsupportedAudioFileException | IOException e) {
             return -1;

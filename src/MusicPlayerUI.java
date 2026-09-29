@@ -73,6 +73,13 @@ public final class MusicPlayerUI extends JFrame {
     /** Serialization id. */
     private static final long serialVersionUID = 1L;
 
+    static {
+        // Must run before the font system starts (SERIF / SANS below).
+        System.setProperty("awt.useSystemAAFontSettings", "lcd");
+        System.setProperty("swing.aatext", "true");
+        System.setProperty("sun.java2d.uiScale.enabled", "true");
+    }
+
     // ---------------------------------------------------------------- theme
 
     /** Background top. */
@@ -671,7 +678,7 @@ public final class MusicPlayerUI extends JFrame {
             }
         }
         if (added == 0) {
-            this.subtitle.setText("No playable files (WAV, AIFF or AU)");
+            this.subtitle.setText("No playable files (MP3, WAV, AIFF or AU)");
             this.subtitle.setForeground(new Color(0xFF8A80));
             return;
         }
@@ -791,7 +798,7 @@ public final class MusicPlayerUI extends JFrame {
      */
     private void chooseFiles() {
         File[] files = this.pick("Add music", false, true,
-                "*.wav;*.aif;*.aiff;*.au", AudioTrack.EXTENSIONS);
+                "*.mp3;*.wav;*.aif;*.aiff;*.au", AudioTrack.EXTENSIONS);
         if (files.length > 0) {
             this.addFiles(Arrays.asList(files));
         }
@@ -879,7 +886,7 @@ public final class MusicPlayerUI extends JFrame {
                 && current.equals(this.loadedPath);
         if (current == null) {
             this.title.setText("Nothing on the turntable");
-            this.subtitle.setText("Drop WAV, AIFF or AU files here,"
+            this.subtitle.setText("Drop MP3 or WAV files here,"
                     + " or press Space to browse");
             this.subtitle.setForeground(MUTED);
         } else {
@@ -1039,7 +1046,16 @@ public final class MusicPlayerUI extends JFrame {
      */
     private static JLabel label(String text, String family, int style,
             int size, Color color) {
-        JLabel l = new JLabel(text);
+        JLabel l = new JLabel(text) {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = smooth(g);
+                super.paintComponent(g2);
+                g2.dispose();
+            }
+        };
         l.setFont(new Font(family, style, size));
         l.setForeground(color);
         return l;
@@ -1890,15 +1906,18 @@ public final class MusicPlayerUI extends JFrame {
      *            files or folders
      */
     public static void main(String[] args) {
-        System.setProperty("awt.useSystemAAFontSettings", "on");
-        System.setProperty("swing.aatext", "true");
         SwingUtilities.invokeLater(() -> {
-            try {
-                javax.swing.UIManager.setLookAndFeel(
-                        javax.swing.UIManager.getSystemLookAndFeelClassName());
-            } catch (ReflectiveOperationException
-                    | javax.swing.UnsupportedLookAndFeelException e) {
-                // keep the default look
+            // FlatLaf (lib/flatlaf-*.jar, fetched by run.bat) gives crisp,
+            // modern widgets; fall back to the OS look without it.
+            for (String laf : new String[] { "com.formdev.flatlaf.FlatDarkLaf",
+                javax.swing.UIManager.getSystemLookAndFeelClassName() }) {
+                try {
+                    javax.swing.UIManager.setLookAndFeel(laf);
+                    break;
+                } catch (ReflectiveOperationException
+                        | javax.swing.UnsupportedLookAndFeelException e) {
+                    // try the next one
+                }
             }
             MusicPlayerUI ui = new MusicPlayerUI();
             List<File> files = new ArrayList<>();
