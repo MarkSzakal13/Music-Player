@@ -1,5 +1,7 @@
 package components.musicplayer;
 
+import java.util.List;
+
 /**
  * Music Player Interface.
  */
@@ -35,4 +37,28 @@ public interface MusicPlayer extends MusicPlayerKernel {
      * @ensures playlist.contains(song) && playlist.indexOf(song) == index
      */
     void adjustOrder(String song, int index);
+
+    /**
+     * Advances to the next track, moving the current one to the end.
+     *
+     * @updates this
+     * @ensures playlist = #playlist[1, |#playlist|) * <#playlist[0]>
+     */
+    void next();
+
+    /**
+     * Goes back to the previous track, moving the last one to the front.
+     *
+     * @updates this
+     * @ensures #playlist = playlist[1, |playlist|) * <playlist[0]>
+     */
+    void previous();
+
+    /**
+     * Returns the playlist in order, current track first.
+     *
+     * @return a copy of the playlist
+     * @ensures songs = playlist
+     */
+    List<String> songs();
 }

@@ -1,167 +1,101 @@
 package components.musicplayer;
 
-import components.queue.Queue;
-import components.queue.Queue1L;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
- * Abstract class to implement MusicPlayer. Includes methods such as skip,
- * shuffle, adjustOrder, equals, and toString.
+ * Secondary methods of {@link MusicPlayer}, plus {@code equals},
+ * {@code hashCode} and {@code toString}, written using only kernel methods.
  */
 public abstract class MusicPlayerSecondary implements MusicPlayer {
 
     /**
-     * Skips current song and set the next song as current.
+     * Removes and returns every song, front first.
+     *
+     * @return the songs that were in the playlist
      */
+    private List<String> drain() {
+        List<String> out = new ArrayList<>();
+        while (this.getPlaylistLength() > 0) {
+            String song = this.getTrack();
+            this.removeSong(song);
+            out.add(song);
+        }
+        return out;
+    }
+
+    /**
+     * Appends every song in order.
+     *
+     * @param songs
+     *            the songs to add
+     */
+    private void refill(List<String> songs) {
+        for (String song : songs) {
+            this.addSong(song);
+        }
+    }
+
     @Override
-    public void skip() {
+    public final void skip() {
         if (this.getPlaylistLength() > 0) {
             this.removeSong(this.getTrack());
         }
     }
 
-    /**
-     * Randomly shuffles the order of songs in the playlist.
-     */
     @Override
-    public void shuffle() {
-        String[] sortingArray = new String[this.getPlaylistLength()];
+    public final void shuffle() {
+        List<String> songs = this.drain();
+        Collections.shuffle(songs);
+        this.refill(songs);
+    }
 
-        int shuffleIndex = 0;
-        while (this.getPlaylistLength() > 0) {
-            sortingArray[shuffleIndex] = this.getTrack();
-            this.removeSong(this.getTrack());
-            shuffleIndex++;
+    @Override
+    public final void adjustOrder(String song, int index) {
+        List<String> songs = this.drain();
+        if (songs.remove(song)) {
+            songs.add(Math.max(0, Math.min(index, songs.size())), song);
         }
+        this.refill(songs);
+    }
 
-        for (int i = 0; i < sortingArray.length; i++) {
-            int randomIndex = (int) (Math.random() * sortingArray.length);
-
-            String tempString = sortingArray[i];
-            sortingArray[i] = sortingArray[randomIndex];
-            sortingArray[randomIndex] = tempString;
-        }
-
-        for (String song : sortingArray) {
-            this.addSong(song);
+    @Override
+    public final void next() {
+        if (this.getPlaylistLength() > 0) {
+            String current = this.getTrack();
+            this.removeSong(current);
+            this.addSong(current);
         }
     }
 
-    /**
-     * Adjusts the order of the playlist based on the index inputted by the
-     * user.
-     *
-     * @param song
-     *            The song being moved.
-     * @param index
-     *            The index to which the song will be moved.
-     */
     @Override
-    public void adjustOrder(String song, int index) {
-        if (index <= this.getPlaylistLength()) {
-            Queue<String> temp = new Queue1L<>();
-            boolean found = false;
-
-            while (this.getPlaylistLength() > 0) {
-                String currentSong = this.getTrack();
-                this.removeSong(currentSong);
-
-                if (!found && currentSong.equals(song)) {
-                    found = true;
-                } else {
-                    temp.enqueue(currentSong);
-                }
-            }
-
-            int currentIndex = 0;
-            while (temp.length() > 0) {
-                if (currentIndex == index) {
-                    this.addSong(song);
-                }
-                this.addSong(temp.dequeue());
-                currentIndex++;
-            }
-
-            if (currentIndex == index) {
-                this.addSong(song);
-            }
+    public final void previous() {
+        for (int i = 1; i < this.getPlaylistLength(); i++) {
+            this.next();
         }
     }
 
-    /**
-     * Compares the current object with another object.
-     *
-     * @param o
-     *            object being compared.
-     * @return isEqual Return if the objects are equal.
-     */
     @Override
-    public boolean equals(Object o) {
-        if (o == this) {
-            return true;
-        }
-        if (o == null) {
-            return false;
-        }
-        if (!(o instanceof MusicPlayerSecondary)) {
-            return false;
-        }
-        MusicPlayerSecondary other = (MusicPlayerSecondary) o;
-
-        if (this.play() != other.play()) {
-            return false;
-        }
-
-        Queue<String> thisTemp = new Queue1L<>();
-        Queue<String> otherTemp = new Queue1L<>();
-        boolean isEqual = true;
-
-        while (this.getPlaylistLength() > 0 && other.getPlaylistLength() > 0) {
-            String song1 = this.getTrack();
-            this.removeSong(song1);
-            String song2 = other.getTrack();
-            this.removeSong(song2);
-            if (!song1.equals(song2)) {
-                isEqual = false;
-            }
-
-            thisTemp.enqueue(song1);
-            otherTemp.enqueue(song2);
-        }
-
-        while (thisTemp.length() > 0) {
-            this.addSong(thisTemp.dequeue());
-        }
-        while (otherTemp.length() > 0) {
-            other.addSong(otherTemp.dequeue());
-        }
-        return isEqual;
-
+    public final List<String> songs() {
+        List<String> songs = this.drain();
+        this.refill(songs);
+        return songs;
     }
 
-    /**
-     * Converts MusicPlayerSecondary to a string.
-     *
-     * @return the string version of MusicPlayerSecondary.
-     */
     @Override
-    public String toString() {
-        StringBuilder stringBuilt = new StringBuilder("{");
-        Queue<String> temp = new Queue1L<>();
-        while (this.getPlaylistLength() > 0) {
-            String song = this.getTrack();
-            this.removeSong(song);
-            stringBuilt.append(song);
-            temp.enqueue(song);
-            if (this.getPlaylistLength() > 0) {
-                stringBuilt.append(", ");
-            }
-        }
+    public final boolean equals(Object o) {
+        return o == this || (o instanceof MusicPlayer other
+                && this.songs().equals(other.songs()));
+    }
 
-        while (temp.length() > 0) {
-            this.addSong(temp.dequeue());
-        }
+    @Override
+    public final int hashCode() {
+        return this.songs().hashCode();
+    }
 
-        stringBuilt.append("}");
-        return stringBuilt.toString();
+    @Override
+    public final String toString() {
+        return "{" + String.join(", ", this.songs()) + "}";
     }
 }

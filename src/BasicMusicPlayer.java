@@ -1,8 +1,6 @@
 import components.musicplayer.MusicPlayerOnQueue;
-import components.simplereader.SimpleReader;
-import components.simplereader.SimpleReader1L;
-import components.simplewriter.SimpleWriter;
-import components.simplewriter.SimpleWriter1L;
+import java.io.PrintStream;
+import java.util.Scanner;
 
 /**
  * A basic music player that allows the user to interact with a playlist by
@@ -18,14 +16,29 @@ public final class BasicMusicPlayer {
     }
 
     /**
+     * Reads a line as an integer; -1 if it is not a number.
+     *
+     * @param in
+     *            input
+     * @return the number, or -1
+     */
+    private static int readInt(Scanner in) {
+        try {
+            return Integer.parseInt(in.nextLine().trim());
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    /**
      * Main method to run the program.
      *
      * @param args
      *            command-line arguments
      */
     public static void main(String[] args) {
-        SimpleReader in = new SimpleReader1L();
-        SimpleWriter out = new SimpleWriter1L();
+        Scanner in = new Scanner(System.in);
+        PrintStream out = System.out;
 
         MusicPlayerOnQueue player = new MusicPlayerOnQueue();
         boolean running = true;
@@ -36,12 +49,11 @@ public final class BasicMusicPlayer {
             out.println("3: View playlist");
             out.println("4: Quit");
             out.print("Choose an option: ");
-            int choice = in.nextInteger();
+            int choice = readInt(in);
             out.println();
 
             if (choice == 1) {
                 out.print("Enter a song: ");
-                in.nextLine();
                 String song = in.nextLine();
                 player.addSong(song);
                 out.println("Added: " + song + " to your playlist!");
@@ -56,12 +68,8 @@ public final class BasicMusicPlayer {
             } else if (choice == 3) {
                 if (player.getPlaylistLength() > 0) {
                     out.println("Playlist:");
-                    int length = player.getPlaylistLength();
-                    for (int i = 0; i < length; i++) {
-                        String track = player.getTrack();
+                    for (String track : player.songs()) {
                         out.println("- " + track);
-                        player.skip();
-                        player.addSong(track);
                     }
                 } else {
                     out.println("Your playlist is empty!");
@@ -76,6 +84,5 @@ public final class BasicMusicPlayer {
         }
 
         in.close();
-        out.close();
     }
 }

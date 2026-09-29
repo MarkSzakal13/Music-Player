@@ -8,6 +8,25 @@ the following form: YYYY.0M.0D.
 
 ## [Unreleased]
 
+## [2026.09.28]
+
+### Added
+
+- "Nocturne" desktop UI (`MusicPlayerUI`): vinyl turntable, waveform seek
+  bar, queue with drag-and-drop, shuffle, repeat, volume, `.m3u` playlists
+- Real audio playback for WAV / AIFF / AU (`AudioTrack`)
+- `next`, `previous` and `songs` secondary methods, with tests
+
+### Changed
+
+- Component no longer depends on the OSU components library
+- Console players use `java.util.Scanner`
+
+### Fixed
+
+- `play()` now records the playing state
+- `equals` removed songs from the wrong player; added `hashCode`
+
 ## [2024.08.07]
 
 ### Added

@@ -1,11 +1,34 @@
 package components.musicplayer;
 
-import components.standard.Standard;
-
 /**
- * Kernel interface for a music player.
+ * Kernel interface for a music player. The playlist is a queue: its front is
+ * the current track.
  */
-public interface MusicPlayerKernel extends Standard<MusicPlayer> {
+public interface MusicPlayerKernel {
+
+    /**
+     * Resets this to an empty, paused playlist.
+     *
+     * @clears this
+     */
+    void clear();
+
+    /**
+     * Returns a new, empty object of the same type.
+     *
+     * @return the new object
+     */
+    MusicPlayer newInstance();
+
+    /**
+     * Moves the contents of source into this and clears source.
+     *
+     * @param source
+     *            the object to take the contents of
+     * @replaces this
+     * @clears source
+     */
+    void transferFrom(MusicPlayer source);
 
     /**
      * Adds a song to the playlist.
